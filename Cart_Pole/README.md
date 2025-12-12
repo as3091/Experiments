@@ -69,10 +69,10 @@ Yes we can, the problem is that once the pole starts to fall, the linearization 
 
 ![alt text][Try_1]
 
-So next step is to augment this with a multiple lookahead steps and re-optimization at each time step.
-basically a Model Predictive Control (MPC) approach.
-RL + MPC basically.
+- So next step is to augment this with a multiple lookahead steps and re-optimization at each time step.
+- a Model Predictive Control (MPC) approach.
+- RL + MPC basically.
 
-
-
+---
+<!-- References here -->
 [Try_1]: https://github.com/as3091/Experiments/raw/main/Cart_Pole/Images/Try_1.png "Try 1, Newton one step lookahead"
