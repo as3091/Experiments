@@ -1,10 +1,15 @@
 # Experiments
 
-0. [Cart_Pole Experiment](Cart_Pole)
+0. [Cart_Pole](Cart_Pole)
 0. second item
 0. another item
 {: reversed="reversed"}
 
+<ol reversed>
+  <li>My third favorite</li>
+  <li>My second favorite</li>
+  <li>My absolute favorite</li>
+</ol>
 
 ---
 <!-- References here -->
