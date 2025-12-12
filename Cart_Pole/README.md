@@ -1,15 +1,17 @@
 # Cart_Pole
 
-# CartPole-v1 Physics Controller
+---
 
-## Overview
-This project implements a **Model-Based Controller** for the gymnasium `CartPole-v1` environment. Instead of using Reinforcement Learning to approximate a value function, this controller uses the exact **Equations of Motion** (derived from Newtonian mechanics) to predict the future state of the system.
+##### Idea 1 : Can i simply use a Physics Controller greedily to solve CartPole? 
+
+###### Overview
+Instead of using Reinforcement Learning to approximate a value function, this controller uses the exact **Equations of Motion** (derived from Newtonian mechanics) to predict the future state of the system.
 
 By performing a 1-step (or multi-step) lookahead using these physics equations, the agent can greedily select the action that minimizes the pole's angle and stabilizes the cart.
 
 ---
 
-## 1. Physics Model & Constants
+###### 1. Physics Model & Constants
 The dynamics are governed by a specific set of physical constants defined in the OpenAI Gym source code.
 
 | Constant | Symbol | Value | Description |
@@ -24,7 +26,7 @@ The dynamics are governed by a specific set of physical constants defined in the
 
 ---
 
-## 2. State Space
+###### 2. State Space
 The environment state is a continuous 4-dimensional vector:
 
 1.  **$x$**: Cart Position ($0$ is center).
@@ -34,7 +36,7 @@ The environment state is a continuous 4-dimensional vector:
 
 ---
 
-## 3. Equations of Motion
+###### 3. Equations of Motion
 To predict the next state, we solve the differential equations for linear ($\ddot{x}$) and angular ($\ddot{\theta}$) acceleration.
 
 ### A. Intermediate Force Calculation
@@ -54,7 +56,7 @@ $$\ddot{x} = \text{temp} - \frac{M_p L \ddot{\theta} \cos\theta}{M}$$
 
 ---
 
-## 4. Euler Integration (Update Step)
+###### 4. Euler Integration (Update Step)
 The simulation advances time discretely. We calculate the state at time $t+1$ using Euler integration:
 
 * **Position:** $x_{new} = x + \tau \cdot \dot{x}$
@@ -62,7 +64,14 @@ The simulation advances time discretely. We calculate the state at time $t+1$ us
 * **Angle:** $\theta_{new} = \theta + \tau \cdot \dot{\theta}$
 * **Angular Velocity:** $\dot{\theta}_{new} = \dot{\theta} + \tau \cdot \ddot{\theta}$
 
----
+##### Learning : 
+Yes we can, the problem is that once the pole starts to fall, the linearization errors accumulate and the controller fails to recover.
 
-## 5. Implementation
-The following Python function implements the physics logic described above to predict the next state given a current state and action.
+![alt text][Try_1]
+
+So next step is to augment this with a multiple lookahead steps and re-optimization at each time step.
+basically a Model Predictive Control (MPC) approach.
+RL + MPC basically.
+
+
+[Try_1]: https://github.com/as3091/Experiments/tree/main/Cart_Pole/Images/Screenshot 2025-12-12 152542.png "Try 1, Newton one step lookahead"
