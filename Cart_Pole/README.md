@@ -67,11 +67,8 @@ The simulation advances time discretely. We calculate the state at time $t+1$ us
 ##### Learning : 
 Yes we can, the problem is that once the pole starts to fall, the linearization errors accumulate and the controller fails to recover.
 
-![alt text][Try_1]
+![alt text](https://github.com/as3091/Experiments/raw/main/Cart_Pole/Images/Try_1.png "Try 1, Newton one step lookahead")
 
 So next step is to augment this with a multiple lookahead steps and re-optimization at each time step.
 basically a Model Predictive Control (MPC) approach.
 RL + MPC basically.
-
-
-[Try_1]: https://github.com/as3091/Experiments/tree/main/Cart_Pole/Images/Try_1.png "Try 1, Newton one step lookahead"
