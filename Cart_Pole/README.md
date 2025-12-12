@@ -74,4 +74,4 @@ basically a Model Predictive Control (MPC) approach.
 RL + MPC basically.
 
 
-[Try_1]: https://github.com/as3091/Experiments/tree/main/Cart_Pole/Images/Screenshot 2025-12-12 152542.png "Try 1, Newton one step lookahead"
+[Try_1]: https://github.com/as3091/Experiments/tree/main/Cart_Pole/Images/Try_1.png "Try 1, Newton one step lookahead"
