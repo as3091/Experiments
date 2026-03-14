@@ -1,1 +1,11 @@
 ping raspberrypi.local
+
+cec-ctl -d /dev/cec0 --playback
+cec-ctl -d /dev/cec0 -l
+
+cec-ctl -d /dev/cec0 --show-topology
+
+Enable external audio (ARC/eARC):
+cec-ctl -d /dev/cec0 --to 5 --set-system-audio-mode on
+Revert to TV speakers:
+cec-ctl -d /dev/cec0 --to 5 --set-system-audio-mode off
