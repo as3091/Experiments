@@ -15,7 +15,7 @@ if os.path.isfile(env_file_path):
             if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
                 value = value[1:-1]
             # Define which keys should be treated as integers (add more as needed)
-            int_keys = {"ON_BUTTON_PIN", "OFF_BUTTON_PIN", "LED_PIN"}
+            int_keys = {"ON_BUTTON_PIN", "OFF_BUTTON_PIN", "LED_PIN","BUTTON_PIN"}
             if key in int_keys:
                 # Treat as int (will error if not numeric)
                 env.Append(CPPDEFINES=[(key, int(value))])

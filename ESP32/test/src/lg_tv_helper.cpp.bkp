@@ -1,0 +1,131 @@
+#include "lg_tv_helper.h"
+#include <Arduino.h>
+#include <WiFiUdp.h>  // For WoL
+#include <ArduinoJson.h>  // For JSON handling; add lib_deps = arduinojson/ArduinoJson if not present
+
+#ifndef TV_IP
+#error TV_IP is not defined from .env
+#endif
+#ifndef TV_MAC
+#error TV_MAC is not defined from .env
+#endif
+#ifndef TV_CLIENT_KEY
+#error TV_CLIENT_KEY is not defined from .env
+#endif
+// Globals from .env (defined via build defines)
+String tvIP = TV_IP;
+String tvMac = TV_MAC;
+String tvClientKey = TV_CLIENT_KEY;
+
+// WebSocket client
+WebSocketsClient webSocket;
+
+// Unique ID counter for requests
+static int requestId = 0;
+
+// Pairing flag (set true first time)
+bool needsPairing = true;  // Change to false after getting key
+
+void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
+    switch (type) {
+        case WStype_CONNECTED:
+            Serial.println("WebSocket connected to LG TV");
+            // Register with key or prompt pairing
+            DynamicJsonDocument doc(1024);
+            doc["type"] = "register";
+            doc["id"] = "register_0";
+            JsonObject payloadObj = doc.createNestedObject("payload");
+            payloadObj["forcePairing"] = false;
+            payloadObj["pairingType"] = "PROMPT";
+            if (!needsPairing && !tvClientKey.isEmpty()) {
+                payloadObj["client-key"] = tvClientKey;
+            }
+            // Manifest (required)
+            JsonObject manifest = payloadObj.createNestedObject("manifest");
+            manifest["manifestVersion"] = 1;
+            manifest["appVersion"] = "1.0";
+            JsonArray permissions = manifest.createNestedArray("permissions");
+            permissions.add("LAUNCH");
+            permissions.add("CONTROL_AUDIO");
+            permissions.add("CONTROL_POWER");
+            // Serialize and send
+            String json;
+            serializeJson(doc, json);
+            webSocket.sendTXT(json);
+            break;
+        case WStype_TEXT:
+            Serial.printf("WebSocket response: %s\n", payload);
+            // Parse response for client-key if pairing
+            DynamicJsonDocument resp(1024);
+            deserializeJson(resp, payload);
+            if (resp["type"] == "registered") {
+                String newKey = resp["payload"]["client-key"];
+                if (!newKey.isEmpty()) {
+                    Serial.printf("Client key obtained: %s\n", newKey.c_str());
+                    // TODO: Store this key (e.g., in ESP32 preferences or manually add to .env and rebuild)
+                    needsPairing = false;
+                }
+            }
+            break;
+        case WStype_DISCONNECTED:
+            Serial.println("WebSocket disconnected");
+            break;
+        default:
+            break;
+    }
+}
+
+void initLgTv() {
+    webSocket.begin(tvIP.c_str(), 3000, "/");
+    webSocket.onEvent(webSocketEvent);
+    webSocket.setReconnectInterval(5000);  // Retry every 5s
+}
+
+void handleLgTvWebSocket() {
+    webSocket.loop();
+}
+
+void sendLgCommand(const char* uri, const char* payloadStr) {
+    if (!webSocket.isConnected()) {
+        Serial.println("WebSocket not connected");
+        return;
+    }
+    DynamicJsonDocument doc(512);
+    doc["type"] = "request";
+    doc["id"] = String("req_") + (++requestId);
+    doc["uri"] = uri;
+    if (payloadStr) {
+        JsonObject payloadObj = doc.createNestedObject("payload");
+        // Parse and add payload if needed
+    }
+    String json;
+    serializeJson(doc, json);
+    webSocket.sendTXT(json);
+}
+
+void sendWol() {
+    WiFiUDP udp;
+    udp.beginPacket("255.255.255.255", 9);  // Broadcast on port 9
+    byte mac[6];
+    sscanf(tvMac.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+    for (int i = 0; i < 16; i++) {  // Magic packet: 6x FF + 16x MAC
+        udp.write(0xFF);
+        if (i >= 6) continue;
+    }
+    for (int i = 0; i < 16; i++) {
+        udp.write(mac, 6);
+    }
+    udp.endPacket();
+    Serial.println("WoL packet sent");
+}
+
+void toggleTvPower() {
+    // Assuming off -> on via WoL; on -> off via API
+    // To check power state, send request to ssap://com.webos.service.tvpower/power/getPowerState (advanced)
+    // For simplicity, always try off if connected, else WoL
+    if (webSocket.isConnected()) {
+        sendLgCommand("ssap://system/turnOff");
+    } else {
+        sendWol();
+    }
+}
