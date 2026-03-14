@@ -10,6 +10,25 @@ void setup() {
   Serial.println("Starting millis blink test...");
 }
 
+void check_led_state_blink(int ledPin, unsigned long &previousMillis) {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= 1000) {  // Check every 1 second
+    previousMillis = currentMillis;
+    bool currentState = digitalRead(ledPin);   // read actual pin state from chip
+    digitalWrite(ledPin, !currentState);        // toggle it
+    Serial.println(!currentState ? "LED ON" : "LED OFF");
+  }
+}
+
+
+void loop() {
+  check_led_state_blink(LED_BUILTIN, previousMillis);
+  // led_blink(LED_BUILTIN, ledState, previousMillis);
+  // Update previousMillis and ledState after the function call
+  // previousMillis = millis(); // Update to current time for next check
+  // ledState = !ledState; // Toggle state for next call}
+}
+
 void led_blink(int ledPin, bool &ledState, unsigned long &previousMillis) {
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= 1000) {  // Check every 1 second
@@ -23,12 +42,5 @@ void led_blink(int ledPin, bool &ledState, unsigned long &previousMillis) {
       Serial.println("LED OFF");
     }
   }
-}
-
-void loop() {
-  led_blink(LED_BUILTIN, ledState, previousMillis);
-  // Update previousMillis and ledState after the function call
-  // previousMillis = millis(); // Update to current time for next check
-  // ledState = !ledState; // Toggle state for next call}
 }
 
