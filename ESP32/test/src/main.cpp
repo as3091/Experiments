@@ -2,15 +2,19 @@
 
 const int ledPin = LED_BUILTIN;  // GPIO2 for LED
 unsigned long previousMillis = 0;  // Tracks last toggle time
-bool ledState = digitalRead(ledPin); // LED state tracker
+// bool ledState = digitalRead(ledPin); // LED state tracker
 
-const int ButtonPin = 13;      // Change to GPIO13 for ON button
+const int ButtonPin = 27;      // Change to GPIO13 for button
+
+unsigned long startMillis = 0;          // set in setup()
+const unsigned long SLEEP_AFTER = 60000; // 1 minute in ms
 
 void setup() {
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(ButtonPin, INPUT_PULLUP);   // Internal pull-up
   Serial.println("Starting button test...");
+  startMillis = millis(); // Initialize start time
 }
 
 void button_check_led_state_blink(int ledPin, unsigned long &previousMillis) {
@@ -29,9 +33,12 @@ void button_check_led_state_blink(int ledPin, unsigned long &previousMillis) {
 }
 
 void loop() {
+  if (millis() - startMillis >= SLEEP_AFTER) {
+    Serial.println("1 minute elapsed — entering deep sleep.");
+    Serial.flush();
+    digitalWrite(LED_BUILTIN, LOW);      // turn LED off before sleep
+    esp_deep_sleep_start();              // wake requires reset or touch/ext wakeup
+  }
+
   button_check_led_state_blink(LED_BUILTIN, previousMillis);
-  // led_blink(LED_BUILTIN, ledState, previousMillis);
-  // Update previousMillis and ledState after the function call
-  // previousMillis = millis(); // Update to current time for next check
-  // ledState = !ledState; // Toggle state for next call}
 }
