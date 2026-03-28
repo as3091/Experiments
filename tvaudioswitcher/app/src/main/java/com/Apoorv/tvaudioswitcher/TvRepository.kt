@@ -17,6 +17,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import android.util.Log
+import kotlinx.coroutines.flow.first
 
 // DataStore extension
 val Context.tvDataStore: DataStore<Preferences> by preferencesDataStore(name = "tvs")
@@ -35,10 +36,23 @@ class TvRepository(private val context: Context) {
     // Save TVs
     suspend fun saveTvs(tvs: List<SmartTv>) {
         context.tvDataStore.edit { prefs ->
-            prefs[TVS_KEY] = Json.encodeToString(tvs)
+            val json = Json.encodeToString(tvs)
+            prefs[TVS_KEY] = json
+            Log.d("DATASTORE", "Saved ${tvs.size} TVs: $json")
         }
     }
-
+    suspend fun updateTvClientKey(ip: String, newKey: String) {
+        val currentTvs = savedTvs.first()
+        val updatedList = currentTvs.map {
+            if (it.ip == ip) it.copy(clientKey = newKey, isPaired = true) else it
+        }
+        saveTvs(updatedList)
+    }
+    suspend fun updateTv(updatedTv: SmartTv) {
+        val currentTvs = savedTvs.first()  // Get current list (blocking for simplicity; use flow in prod)
+        val newList = currentTvs.map { if (it.ip == updatedTv.ip) updatedTv else it }
+        saveTvs(newList)
+    }
     // Discover TVs via SSDP (async)
     suspend fun discoverTvs(): List<SmartTv> = withContext(Dispatchers.IO) {
         val discovered = mutableListOf<SmartTv>()

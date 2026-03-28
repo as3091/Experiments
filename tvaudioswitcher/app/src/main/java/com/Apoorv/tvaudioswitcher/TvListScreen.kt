@@ -12,7 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-
+import android.util.Log
+import kotlinx.coroutines.flow.first
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TvListScreen(onTvSelected: (SmartTv) -> Unit) {
@@ -33,14 +34,33 @@ fun TvListScreen(onTvSelected: (SmartTv) -> Unit) {
     // Auto-discover on launch + hardcode the IP for emulator testing
     LaunchedEffect(Unit) {
         isDiscovering = true
+
+        // Force add hardcoded TV every time for testing
+        val hardcodedTv = SmartTv(
+            name = "Hardcoded LG TV",
+            ip = "192.168.0.122",
+            isPaired = false, // or true if you already paired
+            clientKey = null // or your stored key
+        )
+
+        // Get current saved TVs
+        val currentTvs = repository.savedTvs.first() // blocking get for simplicity
+
+        // Add if not already present
+        if (currentTvs.none { it.ip == hardcodedTv.ip }) {
+            val updated = (currentTvs + hardcodedTv).distinctBy { it.ip }
+            repository.saveTvs(updated)
+            Log.d("TV_DEBUG", "Hardcoded TV added/saved: $hardcodedTv")
+        } else {
+            Log.d("TV_DEBUG", "Hardcoded TV already exists")
+        }
+
+        // Optional: still run discovery
         val newTvs = repository.discoverTvs()
         discoveredTvs = newTvs
-
-        // Hardcode the TV IP for now (remove later for real testing)
-        val hardcodedTv = SmartTv("Hardcoded TV", "192.168.0.122")
-        val allTvs = (savedTvs + newTvs + listOf(hardcodedTv)).distinctBy { it.ip }
-
+        val allTvs = (currentTvs + newTvs + listOf(hardcodedTv)).distinctBy { it.ip }
         repository.saveTvs(allTvs)
+
         isDiscovering = false
     }
 
