@@ -9,3 +9,15 @@ Enable external audio (ARC/eARC):
 cec-ctl -d /dev/cec0 --to 5 --set-system-audio-mode on
 Revert to TV speakers:
 cec-ctl -d /dev/cec0 --to 5 --set-system-audio-mode off
+
+
+Truly native (zero extra parts):
+
+Capacitive touch on up to 10 specific GPIOs (e.g., GPIO4, 2, 15, 13, 12, 14, 27, 32, 33, etc.).
+It detects changes in capacitance when a finger (or conductive object) gets near the pin or a connected pad. Works okay for button replacement if you keep leads short. But it's noisy as hell in humid Bengaluru weather, susceptible to interference, and not precise for anything beyond "touched or not."
+Hall effect sensor (built into the ESP32 die).
+Detects magnetic fields—bring a magnet close to the chip and it changes value. Fun for one-off demos (reed switch alternative, crude proximity). Useless for accurate measurement or anything practical. Sensitivity is mediocre, and it's inside the chip package, so positioning is awkward.
+Internal temperature sensor (chip die temperature only).
+Measures how hot the ESP32 silicon itself is running. Not ambient air temperature. It's inaccurate, poorly calibrated on many chips, and drifts. Most people disable or ignore it because it's nearly worthless for real sensing.
+
+That's it for pure native sensing. Everything else requires connecting something.
