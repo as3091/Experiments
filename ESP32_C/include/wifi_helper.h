@@ -4,7 +4,7 @@
 
 #include <WiFi.h>  // Or other needed libs
 
-extern String wifiSSID;  // If using globals; prefer functions instead
+extern String wifiSSID; // If using globals; prefer functions instead
 extern String wifiPass;
 
 bool wifi_setup();    // Function prototype

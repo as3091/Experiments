@@ -29,8 +29,9 @@ bool wifi_setup()
   }
   // Check status after attempt
   if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\nConnected!");
-      Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+    //   Serial.println("\nConnected!");
+    //   Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+      Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString());
   } else {
       Serial.println("\nFailed to connect.");
       // Print detailed status for debugging
