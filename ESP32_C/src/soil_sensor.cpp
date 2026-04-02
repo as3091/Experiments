@@ -25,8 +25,8 @@ bool soil_db_init() {
 
     const char *sql =
         "CREATE TABLE IF NOT EXISTS readings ("
-        "  date    TEXT NOT NULL,"
-        "  time    TEXT NOT NULL,"
+        "  date TEXT NOT NULL,"
+        "  time TEXT NOT NULL,"
         "  reading INTEGER NOT NULL"
         ");";
 
@@ -39,6 +39,14 @@ bool soil_db_init() {
 
     // Serial.println("Soil DB ready.");
     return true;
+}
+void take_reading(struct tm &time_now)
+{
+
+  int raw = analogRead(SOIL_SENSOR_PIN);
+  Serial.printf("[%02d:%02d:%02d] Raw: %d | Approx moisture: higher=dry\n",
+  time_now.tm_hour, time_now.tm_min, time_now.tm_sec, raw);
+  soil_db_insert(time_now, raw);
 }
 
 bool soil_db_insert(struct tm &timeinfo, int raw) {
@@ -70,4 +78,31 @@ bool soil_db_insert(struct tm &timeinfo, int raw) {
     }
     sqlite3_finalize(stmt);
     return ok;
+}
+
+void soil_db_foreach(soil_row_cb cb) {
+    if (!db || !cb) return;
+
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT date, time, reading FROM readings ORDER BY date, time;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Serial.printf("soil_db_foreach prepare failed: %s\n", sqlite3_errmsg(db));
+        return;
+    }
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* date     = (const char*)sqlite3_column_text(stmt, 0);
+        const char* time_str = (const char*)sqlite3_column_text(stmt, 1);
+        int reading          = sqlite3_column_int(stmt, 2);
+        cb(date, time_str, reading);
+    }
+    sqlite3_finalize(stmt);
+}
+
+void soil_db_clear() {
+    if (!db) return;
+    char *errmsg = nullptr;
+    if (sqlite3_exec(db, "DELETE FROM readings;", nullptr, nullptr, &errmsg) != SQLITE_OK) {
+        Serial.printf("soil_db_clear failed: %s\n", errmsg);
+        sqlite3_free(errmsg);
+    }
 }
