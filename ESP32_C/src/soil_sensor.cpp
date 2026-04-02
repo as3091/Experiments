@@ -1,0 +1,73 @@
+#include <Arduino.h>
+#include <LittleFS.h>
+#include <sqlite3.h>
+#include "soil_sensor.h"
+
+// #define DB_PATH "/littlefs/soil_readings.db"
+
+#ifndef DB_PATH
+#error DB_PATH is not defined from .env
+#endif
+static sqlite3 *db = nullptr;
+
+bool soil_db_init() {
+    if (!LittleFS.begin(true)) {
+        Serial.println("LittleFS mount failed");
+        return false;
+    }
+
+    sqlite3_initialize();
+
+    if (sqlite3_open(DB_PATH, &db) != SQLITE_OK) {
+        Serial.printf("Failed to open DB: %s\n", sqlite3_errmsg(db));
+        return false;
+    }
+
+    const char *sql =
+        "CREATE TABLE IF NOT EXISTS readings ("
+        "  date    TEXT NOT NULL,"
+        "  time    TEXT NOT NULL,"
+        "  reading INTEGER NOT NULL"
+        ");";
+
+    char *errmsg = nullptr;
+    if (sqlite3_exec(db, sql, nullptr, nullptr, &errmsg) != SQLITE_OK) {
+        Serial.printf("Failed to create table: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return false;
+    }
+
+    // Serial.println("Soil DB ready.");
+    return true;
+}
+
+bool soil_db_insert(struct tm &timeinfo, int raw) {
+    if (!db) {
+        Serial.println("DB not initialized");
+        return false;
+    }
+
+    char date[11], time_str[9];
+    strftime(date,     sizeof(date),     "%Y-%m-%d", &timeinfo);
+    strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
+
+    sqlite3_stmt *stmt;
+    const char *sql =
+        "INSERT INTO readings (date, time, reading) VALUES (?, ?, ?);";
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Serial.printf("Prepare failed: %s\n", sqlite3_errmsg(db));
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, date,     -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, time_str, -1, SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 3, raw);
+
+    bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+    if (!ok) {
+        Serial.printf("Insert failed: %s\n", sqlite3_errmsg(db));
+    }
+    sqlite3_finalize(stmt);
+    return ok;
+}

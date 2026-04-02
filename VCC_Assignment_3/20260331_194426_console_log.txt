@@ -1,0 +1,111 @@
+🚀 CPU stress scaler starting
+
+   Threshold      : 75.0%
+   Local cores    : 6
+   Max GCP inst.  : 5
+   MIG            : apoorv-stress-test-managed-instance-group @ us-central1-c
+
+Seeding with 3 local burner processes...
+   [+] Local burner PID 27791  (total local: 1)
+   [+] Local burner PID 27792  (total local: 2)
+   [+] Local burner PID 27793  (total local: 3)
+
+[19:44:27] Local CPU: 51.5%  |  Burners: 3
+------------------------------------------------------------
+   [+] Local burner PID 27862  (total local: 4)
+
+[19:44:39] Local CPU: 88.3%  |  Burners: 4
+------------------------------------------------------------
+   [+] Local burner PID 27954  (total local: 5)
+
+[19:44:51] Local CPU: 83.5%  |  Burners: 5
+------------------------------------------------------------
+   → Local saturated — onboarding existing GCP instance apoorv-stress-test-managed-instance-group-vr3w
+   [⏳] Waiting for SSH on apoorv-stress-test-managed-instance-group-vr3w...
+   [✓] apoorv-stress-test-managed-instance-group-vr3w is SSH-ready
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-vr3w: PID 1626
+
+[19:45:24] Local CPU: 83.5%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+------------------------------------------------------------
+   → All instances at threshold — scaling MIG 1 → 2
+   [⏳] Waiting for new instance to reach RUNNING state...
+   [⏳] Waiting for SSH on apoorv-stress-test-managed-instance-group-tjtk...
+   [✓] apoorv-stress-test-managed-instance-group-tjtk is SSH-ready
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-tjtk: PID 1316
+
+[19:47:08] Local CPU: 83.7%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 50.5%  |  Burners: 1
+------------------------------------------------------------
+   → apoorv-stress-test-managed-instance-group-tjtk at 50.7% — adding burner
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-tjtk: PID 1496
+
+[19:48:10] Local CPU: 83.9%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 100.0%  |  Burners: 2
+------------------------------------------------------------
+   → All instances at threshold — scaling MIG 2 → 3
+   [⏳] Waiting for new instance to reach RUNNING state...
+   [⏳] Waiting for SSH on apoorv-stress-test-managed-instance-group-2gz1...
+   [✓] apoorv-stress-test-managed-instance-group-2gz1 is SSH-ready
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-2gz1: PID 1316
+
+[19:50:16] Local CPU: 84.2%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-2gz1: CPU 50.7%  |  Burners: 1
+------------------------------------------------------------
+   → apoorv-stress-test-managed-instance-group-2gz1 at 50.5% — adding burner
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-2gz1: PID 1495
+
+[19:51:46] Local CPU: 83.8%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   [WARN] command timed out: gcloud compute instances describe
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU unreachable  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-2gz1: CPU 100.0%  |  Burners: 2
+------------------------------------------------------------
+   → All instances at threshold — scaling MIG 3 → 4
+   [⏳] Waiting for new instance to reach RUNNING state...
+   [⏳] Waiting for SSH on apoorv-stress-test-managed-instance-group-4rhc...
+   [✓] apoorv-stress-test-managed-instance-group-4rhc is SSH-ready
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-4rhc: PID 1319
+
+[19:54:28] Local CPU: 83.7%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-2gz1: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-4rhc: CPU 50.2%  |  Burners: 1
+------------------------------------------------------------
+   → apoorv-stress-test-managed-instance-group-4rhc at 50.5% — adding burner
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-4rhc: PID 1499
+
+[19:56:25] Local CPU: 83.7%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-2gz1: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-4rhc: CPU 100.0%  |  Burners: 2
+------------------------------------------------------------
+   → All instances at threshold — scaling MIG 4 → 5
+   [⏳] Waiting for new instance to reach RUNNING state...
+   [⏳] Waiting for SSH on apoorv-stress-test-managed-instance-group-bgt8...
+   [✓] apoorv-stress-test-managed-instance-group-bgt8 is SSH-ready
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-bgt8: PID 1319
+
+[19:59:33] Local CPU: 84.7%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-2gz1: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-4rhc: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-bgt8: CPU 50.5%  |  Burners: 1
+------------------------------------------------------------
+   → apoorv-stress-test-managed-instance-group-bgt8 at 34.2% — adding burner
+   [+] Remote burner on apoorv-stress-test-managed-instance-group-bgt8: PID 1550
+
+[20:02:36] Local CPU: 83.5%  |  Burners: 5
+   ↳ GCP apoorv-stress-test-managed-instance-group-vr3w: CPU 100.0%  |  Burners: 1
+   ↳ GCP apoorv-stress-test-managed-instance-group-tjtk: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-2gz1: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-4rhc: CPU 100.0%  |  Burners: 2
+   ↳ GCP apoorv-stress-test-managed-instance-group-bgt8: CPU 100.0%  |  Burners: 2
+------------------------------------------------------------
