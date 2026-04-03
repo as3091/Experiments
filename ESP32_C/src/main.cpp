@@ -38,6 +38,7 @@ void setup() {
   if (soil_db_init()){
     getLocalTime(&time_now);
     take_reading(time_now);
+    soil_db_print_all();
   }
 
   

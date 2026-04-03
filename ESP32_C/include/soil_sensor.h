@@ -9,6 +9,7 @@ void take_reading(struct tm &time_now);
 
 typedef void (*soil_row_cb)(const char* date, const char* time_str, int reading);
 void soil_db_foreach(soil_row_cb cb);
+void soil_db_print_all();
 void soil_db_clear();
 
 #endif

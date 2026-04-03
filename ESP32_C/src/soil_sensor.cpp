@@ -98,6 +98,29 @@ void soil_db_foreach(soil_row_cb cb) {
     sqlite3_finalize(stmt);
 }
 
+void soil_db_print_all() {
+    if (!db) { Serial.println("[DB] Not initialized"); return; }
+
+    sqlite3_stmt *stmt;
+    const char *sql = "SELECT date, time, reading FROM readings ORDER BY date, time;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        Serial.printf("[DB] print_all prepare failed: %s\n", sqlite3_errmsg(db));
+        return;
+    }
+    int count = 0;
+    Serial.println("[DB] --- All readings ---");
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* date     = (const char*)sqlite3_column_text(stmt, 0);
+        const char* time_str = (const char*)sqlite3_column_text(stmt, 1);
+        int reading          = sqlite3_column_int(stmt, 2);
+        Serial.printf("  %s %s  raw=%d\n", date, time_str, reading);
+        count++;
+    }
+    sqlite3_finalize(stmt);
+    if (count == 0) Serial.println("  (no rows)");
+    Serial.printf("[DB] --- %d row(s) ---\n", count);
+}
+
 void soil_db_clear() {
     if (!db) return;
     char *errmsg = nullptr;
