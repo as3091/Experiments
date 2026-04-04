@@ -2,12 +2,13 @@
 #include <LittleFS.h>
 #include <sqlite3.h>
 #include "soil_sensor.h"
+#include "secrets.h"
 
 // #define DB_PATH "/littlefs/soil_readings.db"
 
-#ifndef DB_PATH
-#error DB_PATH is not defined from .env
-#endif
+// #ifndef DB_PATH
+// #error DB_PATH is not defined from .env
+// #endif
 static sqlite3 *db = nullptr;
 
 bool soil_db_init() {

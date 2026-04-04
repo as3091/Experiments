@@ -1,16 +1,16 @@
 #include <Arduino.h>
-#include <WiFi.h>  // For WiFi functionality
-// #include <PioDotEnv.h>  // For reading .env constants
+#include <WiFi.h>
+#include "secrets.h"
 
-#ifndef NTP_SERVER
-#error NTP_SERVER is not defined from .env
-#endif
-#ifndef GMT_OFFSET_SEC
-#error GMT_OFFSET_SEC is not defined from .env
-#endif
-#ifndef DAYLIGHT_OFFSET_SEC
-#error DAYLIGHT_OFFSET_SEC is not defined from .env
-#endif
+// #ifndef NTP_SERVER
+// #error NTP_SERVER is not defined from .env
+// #endif
+// #ifndef GMT_OFFSET_SEC
+// #error GMT_OFFSET_SEC is not defined from .env
+// #endif
+// #ifndef DAYLIGHT_OFFSET_SEC
+// #error DAYLIGHT_OFFSET_SEC is not defined from .env
+// #endif
 
 bool printLocalTime() {
   struct tm timeinfo;

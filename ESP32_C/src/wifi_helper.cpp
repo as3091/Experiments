@@ -1,13 +1,13 @@
 #include <Arduino.h>
 #include <WiFi.h>  // For WiFi functionality
 // #include <PioDotEnv.h>  // For reading .env constants
-
-#ifndef WIFI_SSID
-#error WIFI_SSID is not defined from .env
-#endif
-#ifndef WIFI_PASS
-#error WIFI_PASS is not defined from .env
-#endif
+#include "secrets.h"
+// #ifndef WIFI_SSID
+// #error WIFI_SSID is not defined from .env
+// #endif
+// #ifndef WIFI_PASS
+// #error WIFI_PASS is not defined from .env
+// #endif
 
 bool wifi_setup()
 {
@@ -19,13 +19,13 @@ bool wifi_setup()
 //   Serial.printf("Password from .env: %s\n", WIFI_PASS);
 //   esp_deep_sleep_start();     
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Connecting to WiFi");
+  Serial.print("Trying to connecting to WiFi");
 
   // Timeout after 10 seconds (adjust as needed)
   unsigned long startAttemptTime = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
       Serial.print(".");
-      delay(500);
+      delay(1000);
   }
   // Check status after attempt
   if (WiFi.status() == WL_CONNECTED) {

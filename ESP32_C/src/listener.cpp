@@ -4,27 +4,24 @@
 #include "wifi_helper.h"
 #include "get_the_time.h"
 #include "soil_sensor.h"
+#include "secrets.h"
 
-#ifndef MQTT_HOST
-#error MQTT_HOST is not defined from .env
-#endif
-#ifndef MQTT_PORT
-#error MQTT_PORT is not defined from .env
-#endif
-#ifndef MQTT_USER
-#error MQTT_USER is not defined from .env
-#endif
-#ifndef MQTT_PASS
-#error MQTT_PASS is not defined from .env
-#endif
+// #ifndef MQTT_HOST
+// #error MQTT_HOST is not defined from .env
+// #endif
+// #ifndef MQTT_PORT
+// #error MQTT_PORT is not defined from .env
+// #endif
+// #ifndef MQTT_USER
+// #error MQTT_USER is not defined from .env
+// #endif
+// #ifndef MQTT_PASS
+// #error MQTT_PASS is not defined from .env
+// #endif
 
-#ifndef LISTEN_SLEEP_MIN
-#error LISTEN_SLEEP_MIN is not defined from .env
-#endif
-
-#define MQTT_CLIENT_ID   "ESP32_Soil_Sensor_01"
-#define TOPIC_COMMAND    "soil_sensor_01/command"  // send "send" here to trigger a reading
-#define TOPIC_DATA       "soil_sensor_01/data"     // JSON readings are published here
+// #ifndef LISTEN_SLEEP_MIN
+// #error LISTEN_SLEEP_MIN is not defined from .env
+// #endif
 
 static WiFiClientSecure tlsClient;
 static PubSubClient     mqttClient(tlsClient);
