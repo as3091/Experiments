@@ -4,6 +4,7 @@
 bool db_init();
 bool db_insert(const char* date_time, int raw);
 bool db_delete(const char* date_time);
+int  db_delete_range(const char* start_dt, const char* end_dt);
 void db_clear();
 
 typedef void (*db_row_cb)(const char* date_time, int reading);

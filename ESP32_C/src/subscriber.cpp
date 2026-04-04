@@ -10,7 +10,7 @@ PubSubClient            mqttClient(tlsClient);  // extern in subscriber.h
 
 static volatile bool sendDataFlag  = false;
 static volatile bool ackFlag       = false;
-static char          ackPayload[512] = {0};
+static char          ackPayload[64] = {0};   // "start_dt|interval|end_dt" ≤ 36 chars
 
 // ---------------------------------------------------------------------------
 // MQTT callback — fires on every incoming message
@@ -74,18 +74,21 @@ void process_loop() {
 
     if (ackFlag) {
         ackFlag = false;
-        char buf[512];
+        // Parse "start_dt|interval_sec|end_dt"
+        char buf[64];
         strncpy(buf, ackPayload, sizeof(buf) - 1);
-        char* token = strtok(buf, "|");
-        int deleted = 0;
-        while (token) {
-            if (db_delete(token)) {
-                Serial.printf("[DB] Deleted: %s\n", token);
-                deleted++;
-            }
-            token = strtok(nullptr, "|");
+        buf[sizeof(buf) - 1] = '\0';
+        char* start_dt = strtok(buf, "|");
+        strtok(nullptr, "|");             // skip interval — not needed for deletion
+        char* end_dt   = strtok(nullptr, "|");
+
+        if (start_dt && end_dt) {
+            int deleted = db_delete_range(start_dt, end_dt);
+            Serial.printf("[DB] Ack — deleted %d row(s) from %s to %s\n",
+                          deleted, start_dt, end_dt);
+        } else {
+            Serial.println("[DB] Ack: malformed payload");
         }
-        Serial.printf("[DB] Ack processed — %d row(s) deleted.\n", deleted);
     }
 }
 

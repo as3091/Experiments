@@ -66,6 +66,20 @@ bool db_delete(const char* date_time) {
     return ok;
 }
 
+int db_delete_range(const char* start_dt, const char* end_dt) {
+    if (!db) return 0;
+    sqlite3_stmt *stmt;
+    const char *sql =
+        "DELETE FROM readings WHERE date_time >= ? AND date_time <= ?;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return 0;
+    sqlite3_bind_text(stmt, 1, start_dt, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, end_dt,   -1, SQLITE_STATIC);
+    sqlite3_step(stmt);
+    int deleted = sqlite3_changes(db);
+    sqlite3_finalize(stmt);
+    return deleted;
+}
+
 void db_clear() {
     if (!db) return;
     char *errmsg = nullptr;
