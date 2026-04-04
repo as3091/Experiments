@@ -8,9 +8,9 @@
 #include "listener.h"
 #include "secrets.h"
 
-#ifndef SLEEP_SEC
-#error SLEEP_SEC is not defined from .env
-#endif
+// #ifndef SLEEP_SEC
+// #error SLEEP_SEC is not defined from .env
+// #endif
 
 RTC_DATA_ATTR static struct tm next_listen_time;
 
@@ -55,8 +55,8 @@ void setup() {
   if (soil_db_init()){
     print_time("next_listen_time", next_listen_time);
     print_time("time_now", time_now);
-    // take_reading(time_now);
-    // soil_db_print_all();
+    take_reading(time_now);
+    soil_db_print_all();
   }
 
   
