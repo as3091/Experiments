@@ -1,7 +1,10 @@
-#ifndef LISTENER_H
-#define LISTENER_H
+#ifndef SUBSCRIBER_H
+#define SUBSCRIBER_H
 
 #include "time.h"
+#include <PubSubClient.h>
+
+extern PubSubClient mqttClient;
 
 void setup_listener();
 void process_loop();

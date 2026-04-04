@@ -5,7 +5,8 @@
 #include "wifi_helper.h"
 #include "get_the_time.h"
 #include "soil_sensor.h"
-#include "listener.h"
+#include "db_stuff.h"
+#include "subscriber.h"
 #include "secrets.h"
 
 // #ifndef SLEEP_SEC
@@ -40,7 +41,7 @@ void normal_stuff()
   struct tm time_now;
   getLocalTime(&time_now);
   take_reading(time_now);
-  soil_db_print_all();
+  db_print_all();
 
   if(mktime(&next_listen_time) < mktime(&time_now))
   {
@@ -72,16 +73,13 @@ void setup() {
   }
   
   // DB must be re-opened every wake (RAM is cleared during deep sleep)
-  if (soil_db_init()){
+  db_init();
+  // if (soil_db_init()){
     // normal_stuff();
-
     // take_reading(time_now);
     // soil_db_print_all();
-  }
-
-  
+  // }
   // getLocalTime(&time_now);
-
   // int raw = analogRead(SOIL_SENSOR_PIN);
   // Serial.printf("[%02d:%02d:%02d] Raw: %d | Approx moisture: higher=dry\n",
   // time_now.tm_hour, time_now.tm_min, time_now.tm_sec, raw);
