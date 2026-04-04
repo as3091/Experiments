@@ -19,7 +19,7 @@ bool wifi_setup()
 //   Serial.printf("Password from .env: %s\n", WIFI_PASS);
 //   esp_deep_sleep_start();     
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Trying to connecting to WiFi");
+//   Serial.print("Trying to connecting to WiFi");
 
   // Timeout after 10 seconds (adjust as needed)
   unsigned long startAttemptTime = millis();

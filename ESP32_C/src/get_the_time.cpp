@@ -18,15 +18,15 @@ bool printLocalTime() {
     Serial.println("Failed to obtain time");
     return false;
   }
-  Serial.println("\nTime synced!");
-  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+  // Serial.println("\nTime synced!");
+  // Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
   return true;
 }
 
 bool local_time_setup()
 {
     configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-    Serial.print("Syncing NTP time");
+    // Serial.print("Syncing NTP time");
     struct tm timeinfo;
     while (!getLocalTime(&timeinfo)) {
         Serial.print(".");

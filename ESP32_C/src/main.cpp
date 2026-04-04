@@ -13,6 +13,7 @@
 // #endif
 
 RTC_DATA_ATTR static struct tm next_listen_time;
+bool wifi_setup_complete_flag;
 
 void go_to_deep_sleep(String the_reason_to_start_over_new = "")
 {
@@ -34,13 +35,32 @@ void print_time(const char* label, struct tm t) {
     t.tm_hour, t.tm_min, t.tm_sec);
 }
 
+void normal_stuff()
+{
+  struct tm time_now;
+  getLocalTime(&time_now);
+  take_reading(time_now);
+  soil_db_print_all();
+
+  if(mktime(&next_listen_time) < mktime(&time_now))
+  {
+    if (wifi_setup_complete_flag) {
+      next_listen_time = mqtt_check(time_now);
+    } else {
+      Serial.println("WiFi failed — skipping MQTT check.");
+    }
+  }
+  // go_to_deep_sleep("normal stuff");
+}
+
 void setup() {
   Serial.begin(115200);
   analogSetAttenuation(ADC_11db);
   struct tm time_now;
   // WiFi + NTP only needed on first boot; RTC retains time through deep sleep
   // wifi_scan();
-  if (!wifi_setup()) {
+  wifi_setup_complete_flag=wifi_setup();
+  if (!wifi_setup_complete_flag) {
     go_to_deep_sleep("WiFi failed." );
   }
   while (!local_time_setup()) {
@@ -53,10 +73,10 @@ void setup() {
   
   // DB must be re-opened every wake (RAM is cleared during deep sleep)
   if (soil_db_init()){
-    print_time("next_listen_time", next_listen_time);
-    print_time("time_now", time_now);
-    take_reading(time_now);
-    soil_db_print_all();
+    // normal_stuff();
+
+    // take_reading(time_now);
+    // soil_db_print_all();
   }
 
   
@@ -70,15 +90,20 @@ void setup() {
 //     Serial.printf("[--:--:--] Raw: %d | Approx moisture: higher=dry\n", raw);
 //   }
 
-  if(mktime(&next_listen_time) < mktime(&time_now))
-  {
-    if (wifi_setup()) {
-      next_listen_time = mqtt_check(time_now);
-    } else {
-      Serial.println("WiFi failed — skipping MQTT check.");
-    }
-  }
-  go_to_deep_sleep("normal stuff");
+
+  // normal_stuff()
+  // if(mktime(&next_listen_time) < mktime(&time_now))
+  // {
+  //   if (wifi_setup_complete_flag) {
+  //     next_listen_time = mqtt_check(time_now);
+  //   } else {
+  //     Serial.println("WiFi failed — skipping MQTT check.");
+  //   }
+  // }
+  // go_to_deep_sleep("normal stuff");
 }
 
-void loop() {}
+void loop() {
+  normal_stuff();
+  delay(SLEEP_SEC*1000);
+}

@@ -26,6 +26,8 @@
 static WiFiClientSecure tlsClient;
 static PubSubClient     mqttClient(tlsClient);
 static volatile bool    sendDataFlag = false;
+static volatile bool    ackFlag      = false;
+static char             ackPayload[512] = {0};
 
 // ---------------------------------------------------------------------------
 // MQTT callback — fires on every incoming message
@@ -37,8 +39,13 @@ static void onMessage(char* topic, byte* payload, unsigned int length) {
 
     Serial.printf("[MQTT] %s -> %s\n", topic, msg);
 
-    if (strcmp(topic, TOPIC_COMMAND) == 0 && strcmp(msg, "send") == 0) {
-        sendDataFlag = true;
+    if (strcmp(topic, TOPIC_COMMAND) == 0) {
+        if (strcmp(msg, "send") == 0) {
+            sendDataFlag = true;
+        } else if (strncmp(msg, "ack ", 4) == 0) {
+            strncpy(ackPayload, msg + 4, sizeof(ackPayload) - 1);
+            ackFlag = true;
+        }
     }
 }
 
@@ -63,17 +70,23 @@ static bool mqttConnect() {
 static int  s_published = 0;
 static bool s_publishOk = true;
 
-static void publishRow(const char* date, const char* time_str, int reading) {
-    char payload[96];
+static void publishRow(const char* date_time_str, int reading) {
+    char payload[19];
+    // char reading_buffer[5];
+    // string full_name = std::format("{} {}", first, last);
+    // snprintf(reading_buffer, sizeof(reading_buffer), "%04d", reading);
+    // snprintf(payload, sizeof(payload),
+    //          "{\"date_time_str\":\"%s\",\"raw\":%d}",
+    //          date_time_str, reading);
     snprintf(payload, sizeof(payload),
-             "{\"date\":\"%s\",\"time\":\"%s\",\"raw\":%d}",
-             date, time_str, reading);
+             "%s|%04d",
+             date_time_str, reading);
 
     if (mqttClient.publish(TOPIC_DATA, payload)) {
         Serial.printf("[MQTT] Published -> %s\n", payload);
         s_published++;
     } else {
-        Serial.printf("[MQTT] Publish failed for row %s %s\n", date, time_str);
+        Serial.printf("[MQTT] Publish failed for row %s %s\n", date_time_str);
         s_publishOk = false;
     }
     delay(20);  // give broker a moment between messages
@@ -90,14 +103,7 @@ static void publishReading() {
         return;
     }
 
-    Serial.printf("[MQTT] Published %d row(s).\n", s_published);
-
-    if (s_publishOk) {
-        soil_db_clear();
-        Serial.println("[DB] Cleared published rows.");
-    } else {
-        Serial.println("[DB] Some publishes failed — rows kept for retry.");
-    }
+    Serial.printf("[MQTT] Published %d row(s). Waiting for ack to delete.\n", s_published);
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +149,23 @@ void process_loop() {
     if (sendDataFlag) {
         sendDataFlag = false;
         publishReading();
+    }
+
+    if (ackFlag) {
+        ackFlag = false;
+        // parse "dt1|dt2|dt3..." and delete each
+        char buf[512];
+        strncpy(buf, ackPayload, sizeof(buf) - 1);
+        char* token = strtok(buf, "|");
+        int deleted = 0;
+        while (token) {
+            if (soil_db_delete(token)) {
+                Serial.printf("[DB] Deleted: %s\n", token);
+                deleted++;
+            }
+            token = strtok(nullptr, "|");
+        }
+        Serial.printf("[DB] Ack processed — %d row(s) deleted.\n", deleted);
     }
 }
 

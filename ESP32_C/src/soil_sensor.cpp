@@ -26,8 +26,7 @@ bool soil_db_init() {
 
     const char *sql =
         "CREATE TABLE IF NOT EXISTS readings ("
-        "  date TEXT NOT NULL,"
-        "  time TEXT NOT NULL,"
+        "  date_time TEXT NOT NULL,"
         "  reading INTEGER NOT NULL"
         ");";
 
@@ -44,34 +43,35 @@ bool soil_db_init() {
 void take_reading(struct tm &time_now)
 {
 
+  char date_time_now_string[15];
+  strftime(date_time_now_string, sizeof(date_time_now_string), "%Y%m%d%H%M%S", &time_now);
   int raw = analogRead(SOIL_SENSOR_PIN);
-  Serial.printf("[%02d:%02d:%02d] Raw: %d | Approx moisture: higher=dry\n",
-  time_now.tm_hour, time_now.tm_min, time_now.tm_sec, raw);
-  soil_db_insert(time_now, raw);
+  Serial.printf("%s : %d | Approx moisture: higher=dry\n",date_time_now_string, raw);
+
+  soil_db_insert(date_time_now_string, raw);
 }
 
-bool soil_db_insert(struct tm &timeinfo, int raw) {
+bool soil_db_insert(const char* date_time_now_string, int raw) {
     if (!db) {
         Serial.println("DB not initialized");
         return false;
     }
 
-    char date[11], time_str[9];
-    strftime(date,     sizeof(date),     "%Y-%m-%d", &timeinfo);
-    strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
+    // char date[11], time_str[9];
+    // strftime(date,     sizeof(date),     "%Y-%m-%d", &timeinfo);
+    // strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
 
     sqlite3_stmt *stmt;
     const char *sql =
-        "INSERT INTO readings (date, time, reading) VALUES (?, ?, ?);";
+        "INSERT INTO readings (date_time, reading) VALUES ( ?, ?);";
 
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         Serial.printf("Prepare failed: %s\n", sqlite3_errmsg(db));
         return false;
     }
 
-    sqlite3_bind_text(stmt, 1, date,     -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, time_str, -1, SQLITE_STATIC);
-    sqlite3_bind_int (stmt, 3, raw);
+    sqlite3_bind_text(stmt, 1, date_time_now_string,     -1, SQLITE_STATIC);
+    sqlite3_bind_int (stmt, 2, raw);
 
     bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
     if (!ok) {
@@ -85,16 +85,15 @@ void soil_db_foreach(soil_row_cb cb) {
     if (!db || !cb) return;
 
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT date, time, reading FROM readings ORDER BY date, time;";
+    const char *sql = "SELECT date_time, reading FROM readings ORDER BY date_time;";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         Serial.printf("soil_db_foreach prepare failed: %s\n", sqlite3_errmsg(db));
         return;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        const char* date     = (const char*)sqlite3_column_text(stmt, 0);
-        const char* time_str = (const char*)sqlite3_column_text(stmt, 1);
-        int reading          = sqlite3_column_int(stmt, 2);
-        cb(date, time_str, reading);
+        const char* date_time_now_string  = (const char*)sqlite3_column_text(stmt, 0);
+        int reading          = sqlite3_column_int(stmt, 1);
+        cb(date_time_now_string, reading);
     }
     sqlite3_finalize(stmt);
 }
@@ -103,7 +102,7 @@ void soil_db_print_all() {
     if (!db) { Serial.println("[DB] Not initialized"); return; }
 
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT date, time, reading FROM readings ORDER BY date, time;";
+    const char *sql = "SELECT date_time, reading FROM readings ORDER BY date_time;";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         Serial.printf("[DB] print_all prepare failed: %s\n", sqlite3_errmsg(db));
         return;
@@ -111,15 +110,25 @@ void soil_db_print_all() {
     int count = 0;
     Serial.println("[DB] --- All readings ---");
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        const char* date     = (const char*)sqlite3_column_text(stmt, 0);
-        const char* time_str = (const char*)sqlite3_column_text(stmt, 1);
-        int reading          = sqlite3_column_int(stmt, 2);
-        Serial.printf("  %s %s  raw=%d\n", date, time_str, reading);
+        const char* date_time = (const char*)sqlite3_column_text(stmt, 0);
+        int reading           = sqlite3_column_int(stmt, 1);
+        Serial.printf("  %s  raw=%d\n", date_time, reading);
         count++;
     }
     sqlite3_finalize(stmt);
     if (count == 0) Serial.println("  (no rows)");
     Serial.printf("[DB] --- %d row(s) ---\n", count);
+}
+
+bool soil_db_delete(const char* date_time) {
+    if (!db) return false;
+    sqlite3_stmt *stmt;
+    const char *sql = "DELETE FROM readings WHERE date_time = ?;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, date_time, -1, SQLITE_STATIC);
+    bool ok = (sqlite3_step(stmt) == SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    return ok;
 }
 
 void soil_db_clear() {
