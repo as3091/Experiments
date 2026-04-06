@@ -6,3 +6,4 @@
 *.db
 secrets.h
 .claudeignore
+.env
