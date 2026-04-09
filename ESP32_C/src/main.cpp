@@ -27,14 +27,34 @@ static bool mqttConnect() {
 static WiFiClientSecure blynkTls;
 static PubSubClient     blynkMqtt(blynkTls);
 
+static void blynk_on_message(char* topic, byte* payload, unsigned int length) {
+    Serial.printf("[Blynk] ← topic: %s  payload: ", topic);
+    for (unsigned int i = 0; i < length; i++) Serial.print((char)payload[i]);
+    Serial.println();
+}
+
 static void blynk_connect() {
     blynkTls.setInsecure();
     blynkMqtt.setServer(BLYNK_MQTT_HOST, BLYNK_MQTT_PORT);
+    blynkMqtt.setCallback(blynk_on_message);
     Serial.print("Connecting to Blynk MQTT...");
     blynkMqtt.setBufferSize(512);
     blynkMqtt.setKeepAlive(45);
     if (blynkMqtt.connect("esp32_blynk", "device", BLYNK_AUTH_TOKEN)) {
         Serial.println(" connected.");
+
+        // Required: tell Blynk about this device so the dashboard activates it
+        char info[128];
+        snprintf(info, sizeof(info),
+                 "{\"type\":\"TMCx\",\"ver\":\"0.0.1\",\"build\":\"%s %s\","
+                 "\"tmpl\":\"%s\",\"rxbuff\":512}",
+                 __DATE__, __TIME__, BLYNK_TEMPLATE_ID);
+        blynkMqtt.publish("info/mcu", info);
+        Serial.printf("[Blynk] Published info/mcu: %s\n", info);
+
+        // Subscribe to all downlink messages from Blynk server/dashboard
+        blynkMqtt.subscribe("downlink/#");
+        Serial.println("[Blynk] Subscribed to downlink/#");
     } else {
         Serial.printf(" failed (rc=%d).\n", blynkMqtt.state());
     }
@@ -69,21 +89,17 @@ static void collect_reading() {
 }
 
 static void publish_batch() {
+    if (batch_idx == 0) return;
     if (!blynkMqtt.connected()) blynk_connect();
 
-    // Build [[ts,val],[ts,val],...] — max ~30 chars per entry
-    char payload[BATCH_SIZE * 32 + 4];
-    int  pos = 0;
-    pos += snprintf(payload + pos, sizeof(payload) - pos, "[");
-    for (int i = 0; i < BATCH_SIZE; i++) {
-        if (i > 0) pos += snprintf(payload + pos, sizeof(payload) - pos, ",");
-        pos += snprintf(payload + pos, sizeof(payload) - pos,
-                        "[%lld,%d]", batch[i].ts_ms, batch[i].strength);
+    // Publish each reading as a plain value — the format Blynk actually supports
+    for (int i = 0; i < batch_idx; i++) {
+        char val[8];
+        snprintf(val, sizeof(val), "%d", batch[i].strength);
+        blynkMqtt.publish(BLYNK_TPOIC_NAME, val);
+        Serial.printf("[Blynk] → %s = %s%%\n", BLYNK_TPOIC_NAME,val);
+        delay(50);  // small gap so broker doesn't drop rapid messages
     }
-    snprintf(payload + pos, sizeof(payload) - pos, "]");
-
-    blynkMqtt.publish(BLYNK_VPIN_WIFI_STRENGTH, payload);
-    Serial.printf("[Blynk] Batch sent: %s\n", payload);
     batch_idx = 0;
 }
 
@@ -102,17 +118,41 @@ void setup() {
 
     wifi_setup();
     configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
+
+    // Wait for NTP sync before collecting (time() returns < 2020 until synced)
+    Serial.print("Waiting for NTP sync...");
+    while (time(nullptr) < 1577836800L) { delay(200); }
+    Serial.println(" done.");
+
     blynk_connect();
+
+    // Collect and publish one reading immediately so we don't wait 5 minutes
+    collect_reading();
+    publish_batch();
 }
 
 void loop() {
-    static unsigned long lastCollect = 0;
-    if (millis() - lastCollect >= 1000) {
+    unsigned long now = millis();
+
+    // Check WiFi every SLEEP_SEC seconds; collect a reading at the same time
+    static unsigned long lastWifiCheck = 0;
+    if (now - lastWifiCheck >= (unsigned long)SLEEP_SEC * 1000UL) {
+        lastWifiCheck = now;
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[WiFi] Disconnected — reconnecting...");
+            wifi_setup();
+        } else {
+            Serial.println("[WiFi] OK");
+        }
         collect_reading();
-        lastCollect = millis();
     }
-    if (batch_idx >= BATCH_SIZE) {
+
+    // Send batch to Blynk every LISTEN_SLEEP_MIN minutes
+    static unsigned long lastPublish = 0;
+    if (now - lastPublish >= (unsigned long)LISTEN_SLEEP_MIN * 60UL * 1000UL) {
+        lastPublish = now;
         publish_batch();
     }
+
     blynkMqtt.loop();
 }
