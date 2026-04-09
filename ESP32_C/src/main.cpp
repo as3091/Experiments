@@ -92,14 +92,19 @@ static void publish_batch() {
     if (batch_idx == 0) return;
     if (!blynkMqtt.connected()) blynk_connect();
 
-    // Publish each reading as a plain value — the format Blynk actually supports
+    // Build [[ts_ms, val], ...] — Blynk timestamped_batch format
+    char payload[BATCH_SIZE * 32 + 4];
+    int  pos = 0;
+    pos += snprintf(payload + pos, sizeof(payload) - pos, "[");
     for (int i = 0; i < batch_idx; i++) {
-        char val[8];
-        snprintf(val, sizeof(val), "%d", batch[i].strength);
-        blynkMqtt.publish(BLYNK_TPOIC_NAME, val);
-        Serial.printf("[Blynk] → %s = %s%%\n", BLYNK_TPOIC_NAME,val);
-        delay(50);  // small gap so broker doesn't drop rapid messages
+        if (i > 0) pos += snprintf(payload + pos, sizeof(payload) - pos, ",");
+        pos += snprintf(payload + pos, sizeof(payload) - pos,
+                        "[%lld,%d]", batch[i].ts_ms, batch[i].strength);
     }
+    snprintf(payload + pos, sizeof(payload) - pos, "]");
+
+    blynkMqtt.publish(BLYNK_TOPIC_BATCH, payload);
+    Serial.printf("[Blynk] → %s  %s\n", BLYNK_TOPIC_BATCH, payload);
     batch_idx = 0;
 }
 
