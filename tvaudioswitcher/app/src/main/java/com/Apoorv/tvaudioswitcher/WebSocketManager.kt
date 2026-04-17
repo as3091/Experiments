@@ -1,15 +1,25 @@
 package com.Apoorv.tvaudioswitcher
 
 import android.util.Log
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
-import okhttp3.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import org.json.JSONObject
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import javax.net.ssl.*
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
+
 object WebSocketManager {
     private var webSocket: WebSocket? = null
     private val responseChannels = mutableMapOf<String, Channel<JSONObject>>()
@@ -31,7 +41,7 @@ object WebSocketManager {
         .build()
 
     suspend fun connectOrReuse(ip: String, clientKey: String): Boolean = withContext(Dispatchers.IO) {
-        if (webSocket != null) return@withContext true  // Already connected
+        if (webSocket != null) return@withContext true
 
         val request = Request.Builder()
             .url("wss://$ip:3001/")
@@ -45,7 +55,6 @@ object WebSocketManager {
                 Log.d("WS_MGR", "Connected to $ip")
                 this@WebSocketManager.webSocket = webSocket
 
-                // Send registration
                 val payload = """
                 {
                     "type": "register",
@@ -53,8 +62,7 @@ object WebSocketManager {
                     "payload": {
                         "forcePairing": false,
                         "pairingType": "PROMPT",
-                        "client-key": "$clientKey",
-                        "manifest": { ... }  // paste your full manifest here
+                        "client-key": "$clientKey"
                     }
                 }
                 """.trimIndent()
@@ -127,6 +135,31 @@ object WebSocketManager {
             null
         } finally {
             responseChannels.remove(requestId)
+        }
+    }
+
+    suspend fun showToast(ip: String, clientKey: String, message: String) {
+        sendCommand(
+            ip, clientKey,
+            "ssap://system.notifications/createToast",
+            mapOf("message" to message)
+        )
+    }
+
+    suspend fun toggleSoundOutput(ip: String, clientKey: String, currentOutputId: String): String? {
+        val nextMode = SoundMode.next(currentOutputId)
+
+        val response = sendCommand(
+            ip, clientKey,
+            "ssap://com.webos.service.apiadapter/audio/changeSoundOutput",
+            mapOf("output" to nextMode.id)
+        )
+
+        return if (response != null) {
+            showToast(ip, clientKey, "Audio: ${nextMode.label} Enabled")
+            nextMode.id
+        } else {
+            null
         }
     }
 
