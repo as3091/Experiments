@@ -1,6 +1,7 @@
 package com.Apoorv.tvaudioswitcher
 
 import android.content.Context
+import android.net.wifi.WifiManager
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -8,16 +9,15 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.net.DatagramPacket
-import java.net.DatagramSocket
 import java.net.InetAddress
-import android.util.Log
-import kotlinx.coroutines.flow.first
+import java.net.MulticastSocket
+import java.net.URL
 
 // DataStore extension
 val Context.tvDataStore: DataStore<Preferences> by preferencesDataStore(name = "tvs")
@@ -38,87 +38,149 @@ class TvRepository(private val context: Context) {
         context.tvDataStore.edit { prefs ->
             val json = Json.encodeToString(tvs)
             prefs[TVS_KEY] = json
-            Log.d("DATASTORE", "Saved ${tvs.size} TVs: $json")
+            FileLogger.log("DATASTORE", "Saved ${tvs.size} TVs")
         }
     }
-    suspend fun updateTvClientKey(ip: String, newKey: String) {
+
+    suspend fun updateTvClientKey(ip: String, newKey: String, newName: String? = null) {
         val currentTvs = savedTvs.first()
         val updatedList = currentTvs.map {
-            if (it.ip == ip) it.copy(clientKey = newKey, isPaired = true) else it
+            if (it.ip == ip) {
+                it.copy(
+                    clientKey = newKey,
+                    isPaired = true,
+                    name = newName ?: it.name
+                )
+            } else it
         }
         saveTvs(updatedList)
     }
+
     suspend fun updateTv(updatedTv: SmartTv) {
-        val currentTvs = savedTvs.first()  // Get current list (blocking for simplicity; use flow in prod)
+        val currentTvs = savedTvs.first()
         val newList = currentTvs.map { if (it.ip == updatedTv.ip) updatedTv else it }
         saveTvs(newList)
     }
+
     // Discover TVs via SSDP (async)
     suspend fun discoverTvs(): List<SmartTv> = withContext(Dispatchers.IO) {
-        val discovered = mutableListOf<SmartTv>()
-        val socket = DatagramSocket()
-        socket.broadcast = true
-        socket.soTimeout = 5000  // 5 sec timeout
+        val discoveredMap = mutableMapOf<String, SmartTv>()
 
-        val searchMessage = """
-            M-SEARCH * HTTP/1.1
-            HOST: 239.255.255.250:1900
-            MAN: "ssdp:discover"
-            MX: 3
-            ST: upnp:rootdevice  // Broad search; narrow to urn:schemas-upnp-org:device:MediaRenderer:1 for TVs
-            USER-AGENT: Android/UPnP/1.0 MyApp/1.0
-        """.trimIndent().replace("\n", "\r\n") + "\r\n\r\n"
+        val wifiManager =
+            context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val lock = wifiManager.createMulticastLock("SSDP_LOCK")
 
-        val packet = DatagramPacket(
-            searchMessage.toByteArray(),
-            searchMessage.length,
-            InetAddress.getByName("239.255.255.250"),
-            1900
-        )
-        socket.send(packet)
-        Log.d("SSDP", "Discovery packet sent!")  // Confirm send
-
-        // Listen for responses
         try {
-            while (true) {
-                val receivePacket = DatagramPacket(ByteArray(1024), 1024)
-                socket.receive(receivePacket)
-                val response = String(receivePacket.data, 0, receivePacket.length)
-                Log.d("SSDP", "Received response: $response")  // Key debug line
+            lock.acquire()
+            val socket = MulticastSocket()
+            socket.soTimeout = 4000
 
-                // Parse response for TV-like devices
-                val location = response.line("LOCATION") ?: continue
-                val server = response.line("SERVER") ?: continue
-                val ip = extractIpFromLocation(location) ?: continue
+            val group = InetAddress.getByName("239.255.255.250")
 
-                // Filter for TVs (customize based on brand; e.g., contains "Samsung" or "LG")
-                if (server.contains("TV", ignoreCase = true) || server.contains("MediaRenderer") || server.contains("Samsung") || server.contains("LG") || server.contains("Sony")) {
-                    val name = extractNameFromResponse(response) ?: "Unknown TV"
-                    discovered.add(SmartTv(name, ip))
-                    Log.d("SSDP", "Found TV: $name at $ip")  // Success log
-                } else {
-                    Log.d("SSDP", "Ignored non-TV device: $server")  // Why ignored
+            val searchMessage = """
+                M-SEARCH * HTTP/1.1
+                HOST: 239.255.255.250:1900
+                MAN: "ssdp:discover"
+                MX: 2
+                ST: urn:schemas-upnp-org:device:MediaRenderer:1
+                USER-AGENT: Android/UPnP/1.0 MyApp/1.0
+            """.trimIndent().replace("\n", "\r\n") + "\r\n\r\n"
+
+            val packet = DatagramPacket(
+                searchMessage.toByteArray(),
+                searchMessage.length,
+                group,
+                1900
+            )
+
+            socket.send(packet)
+            FileLogger.log("SSDP", "Discovery packet sent (MediaRenderer)")
+
+            try {
+                while (true) {
+                    val buf = ByteArray(2048)
+                    val receivePacket = DatagramPacket(buf, buf.size)
+                    socket.receive(receivePacket)
+                    val response = String(receivePacket.data, 0, receivePacket.length)
+                    val ip = receivePacket.address.hostAddress ?: continue
+
+                    val location = response.lineValue("LOCATION")
+
+                    if (!discoveredMap.containsKey(ip)) {
+                        val detailedName =
+                            if (location != null) fetchDetailedName(location) else null
+                        val name = detailedName ?: "Smart TV"
+
+                        discoveredMap[ip] = SmartTv(name, ip)
+                        FileLogger.log("SSDP", "Found TV: $name at $ip")
+                    }
                 }
+            } catch (e: Exception) {
+                FileLogger.log("SSDP", "Listening finished: ${e.message}")
+            } finally {
+                socket.close()
             }
         } catch (e: Exception) {
-            Log.e("SSDP", "Discovery error: ${e.message}")  // Catch timeouts/errors
+            FileLogger.log("SSDP", "Discovery error: ${e.message}")
         } finally {
-            socket.close()
+            if (lock.isHeld) lock.release()
         }
-        discovered.distinctBy { it.ip }  // Dedupe
+        discoveredMap.values.toList()
     }
 
-    // Helpers
-    private fun String.line(key: String): String? =
+    private fun fetchDetailedName(url: String): String? {
+        return try {
+            val connection = URL(url).openConnection()
+            connection.connectTimeout = 1500
+            connection.readTimeout = 1500
+            val xml = connection.getInputStream().bufferedReader().use { it.readText() }
+
+            FileLogger.log("SSDP", "Raw device.xml from $url:\n$xml")
+
+            val manufacturer = xml.substringBetween("<manufacturer>", "</manufacturer>")
+            val friendlyName = xml.substringBetween("<friendlyName>", "</friendlyName>")
+
+            val cleanManufacturer = when {
+                manufacturer?.contains("LG", ignoreCase = true) == true -> "LG"
+                manufacturer?.contains("Samsung", ignoreCase = true) == true -> "Samsung"
+                manufacturer?.contains("Sony", ignoreCase = true) == true -> "Sony"
+                else -> manufacturer?.split(" ")?.firstOrNull() ?: "Smart"
+            }
+
+            val modelPart = when {
+                // For LG, the model is often at the end of the friendlyName
+                cleanManufacturer == "LG" && friendlyName != null -> {
+                    // Extract after "TV " to get the full model string (e.g., 43NANO83A6A)
+                    friendlyName.substringAfter("TV ").trim()
+                }
+
+                else -> xml.substringBetween("<modelNumber>", "</modelNumber>")
+                    ?: xml.substringBetween("<modelName>", "</modelName>")
+            }
+
+            if (modelPart != null && modelPart != "1.0") {
+                "${cleanManufacturer}_${modelPart}".replace(" ", "_")
+            } else if (friendlyName != null) {
+                "${cleanManufacturer}_${friendlyName.replace(" ", "_")}"
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            FileLogger.log("SSDP", "Failed to fetch XML from $url: ${e.message}")
+            null
+        }
+    }
+
+    private fun String.substringBetween(start: String, end: String): String? {
+        val startIndex = indexOf(start)
+        if (startIndex == -1) return null
+        val endIndex = indexOf(end, startIndex + start.length)
+        if (endIndex == -1) return null
+        return substring(startIndex + start.length, endIndex).trim()
+    }
+
+    private fun String.lineValue(key: String): String? =
         lines().find { it.startsWith("$key:", ignoreCase = true) }?.let {
             it.substringAfter(":").trim()
         }
-
-    private fun extractIpFromLocation(location: String): String? {
-        return Regex("http://([\\d.]+):?\\d*/").find(location)?.groupValues?.get(1)
-    }
-
-    private fun extractNameFromResponse(response: String): String? {
-        return response.line("USN")?.substringAfter("::")?.trim()  // Or use "friendlyName" if in full XML
-    }
 }

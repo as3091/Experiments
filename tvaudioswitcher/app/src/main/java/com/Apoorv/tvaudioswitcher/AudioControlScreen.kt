@@ -1,5 +1,6 @@
 package com.Apoorv.tvaudioswitcher
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -68,7 +69,7 @@ fun AudioControlScreen(ip: String) {
         isLoading = false
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Audio Control") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(tv?.name ?: "Audio Control") }) }) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -109,7 +110,15 @@ fun AudioControlScreen(ip: String) {
                 Text(
                     text = error,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else if (!isLoading && currentOutputId != "Loading...") {
+                Text(
+                    text = "Switch successful",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
 
@@ -123,12 +132,22 @@ fun AudioControlScreen(ip: String) {
                 Button(
                     onClick = {
                         coroutineScope.launch {
+                            error = ""
                             val response = WebSocketManager.sendCommand(
                                 ip, tv?.clientKey ?: "",
                                 "ssap://com.webos.service.apiadapter/audio/changeSoundOutput",
                                 mapOf("output" to mode.id)
                             )
-                            if (response != null) {
+                            Log.d(
+                                "TV_DEBUG",
+                                "changeSoundOutput response for ${mode.label}: $response"
+                            )
+
+                            val success =
+                                response?.optJSONObject("payload")?.optBoolean("returnValue")
+                                    ?: false
+
+                            if (success) {
                                 currentOutputId = mode.id
                                 WebSocketManager.showToast(
                                     ip,

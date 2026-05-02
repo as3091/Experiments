@@ -15,6 +15,7 @@ import com.Apoorv.tvaudioswitcher.ui.theme.TVAudioSwitcherTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FileLogger.initialize(this)
         enableEdgeToEdge()
         setContent {
             TVAudioSwitcherTheme {

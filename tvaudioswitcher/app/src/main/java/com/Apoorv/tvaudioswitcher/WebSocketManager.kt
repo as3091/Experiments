@@ -41,6 +41,10 @@ object WebSocketManager {
         .build()
 
     suspend fun connectOrReuse(ip: String, clientKey: String): Boolean = withContext(Dispatchers.IO) {
+        if (ip.isBlank()) {
+            Log.e("WS_MGR", "Cannot connect: IP is blank")
+            return@withContext false
+        }
         if (webSocket != null) return@withContext true
 
         val request = Request.Builder()
