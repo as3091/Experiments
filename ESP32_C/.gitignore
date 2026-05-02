@@ -7,3 +7,4 @@
 secrets.h
 .claudeignore
 .env
+.claude
