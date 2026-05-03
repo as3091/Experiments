@@ -223,12 +223,29 @@ fun AudioControlScreen(ip: String) {
                             }
 
                             if (success) {
-                                currentOutputId = modeId
-                                WebSocketManager.showToast(
-                                    ip,
-                                    tv?.clientKey ?: "",
-                                    "Audio: $label Enabled"
+                                // 4. Final verification: Check if the TV actually changed its state
+                                Log.d("TV_DEBUG", "Command reported success, verifying state...")
+                                val verifyResp = WebSocketManager.sendCommand(
+                                    ip, tv?.clientKey ?: "",
+                                    "ssap://com.webos.service.apiadapter/audio/getSoundOutput"
                                 )
+                                val actualOutput =
+                                    verifyResp?.optJSONObject("payload")?.optString("soundOutput")
+
+                                if (actualOutput == modeId) {
+                                    currentOutputId = modeId
+                                    WebSocketManager.showToast(
+                                        ip,
+                                        tv?.clientKey ?: "",
+                                        "Audio: $label Enabled"
+                                    )
+                                } else {
+                                    error = "TV reported success but output is still $actualOutput"
+                                    Log.e(
+                                        "TV_DEBUG",
+                                        "State mismatch: Expected $modeId, got $actualOutput"
+                                    )
+                                }
                             } else {
                                 error = "Failed to switch to $label"
                             }
