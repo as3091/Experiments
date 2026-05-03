@@ -40,6 +40,7 @@ fun AudioControlScreen(ip: String) {
     val coroutineScope = rememberCoroutineScope()
 
     var currentOutputId by remember { mutableStateOf("Loading...") }
+    var availableModes by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
 
@@ -58,13 +59,55 @@ fun AudioControlScreen(ip: String) {
         isLoading = true
         error = ""
 
-        val currentResp = WebSocketManager.sendCommand(
-            ip, tvFound.clientKey ?: "", "ssap://com.webos.service.apiadapter/audio/getSoundOutput"
-        )
-        currentOutputId = currentResp
-            ?.optJSONObject("payload")
-            ?.optString("soundOutput")
-            ?: "Unknown"
+        try {
+            // 1. Get Current Output
+            val currentResp = WebSocketManager.sendCommand(
+                ip,
+                tvFound.clientKey ?: "",
+                "ssap://com.webos.service.apiadapter/audio/getSoundOutput"
+            )
+            currentOutputId = currentResp
+                ?.optJSONObject("payload")
+                ?.optString("soundOutput")
+                ?: "Unknown"
+
+            // 2. Get Available Output List (Dynamic API)
+            val listResp = WebSocketManager.sendCommand(
+                ip,
+                tvFound.clientKey ?: "",
+                "ssap://com.webos.service.apiadapter/audio/getSoundOutputList"
+            )
+            Log.d("TV_DEBUG", "getSoundOutputList raw response: $listResp")
+
+            val soundList = listResp?.optJSONObject("payload")?.optJSONArray("soundOutputList")
+            val modes = mutableListOf<Pair<String, String>>()
+
+            if (soundList != null && soundList.length() > 0) {
+                for (i in 0 until soundList.length()) {
+                    val modeId = soundList.optString(i)
+                    modes.add(modeId to mapModeIdToLabel(modeId))
+                }
+            } else {
+                Log.w(
+                    "TV_DEBUG",
+                    "Dynamic list empty or failed (Response: $listResp), using robust fallback list"
+                )
+                // Fallback to standard LG modes if the dynamic API fails
+                listOf(
+                    "tv_speaker",
+                    "external_arc",
+                    "external_optical",
+                    "tv_speaker_arc",
+                    "bt_soundbar",
+                    "tv_speaker_bt",
+                    "tv_external_speaker",
+                    "headphone"
+                ).forEach { modes.add(it to mapModeIdToLabel(it)) }
+            }
+            availableModes = modes
+        } catch (e: Exception) {
+            error = "Error: ${e.message}"
+        }
 
         isLoading = false
     }
@@ -78,7 +121,9 @@ fun AudioControlScreen(ip: String) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            val currentMode = SoundMode.fromId(currentOutputId)
+            // Helper to get label for current output
+            val currentLabel = availableModes.find { it.first == currentOutputId }?.second
+                ?: if (isLoading) "Detecting..." else "Unknown ($currentOutputId)"
 
             Card(
                 modifier = Modifier
@@ -99,7 +144,7 @@ fun AudioControlScreen(ip: String) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (isLoading) "Detecting..." else currentMode.label,
+                        text = currentLabel,
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -128,34 +173,64 @@ fun AudioControlScreen(ip: String) {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            SoundMode.entries.forEach { mode ->
+            availableModes.forEach { (modeId, label) ->
                 Button(
                     onClick = {
                         coroutineScope.launch {
                             error = ""
-                            val response = WebSocketManager.sendCommand(
-                                ip, tv?.clientKey ?: "",
-                                "ssap://com.webos.service.apiadapter/audio/changeSoundOutput",
-                                mapOf("output" to mode.id)
-                            )
-                            Log.d(
-                                "TV_DEBUG",
-                                "changeSoundOutput response for ${mode.label}: $response"
-                            )
+                            var success = false
 
-                            val success =
-                                response?.optJSONObject("payload")?.optBoolean("returnValue")
-                                    ?: false
+                            // 1. Try audio/setSystemSettings (Specific LG audio endpoint)
+                            Log.d("TV_DEBUG", "Trying audio/setSystemSettings for $label")
+                            val response1 = WebSocketManager.sendCommand(
+                                ip, tv?.clientKey ?: "",
+                                "ssap://com.webos.service.apiadapter/audio/setSystemSettings",
+                                mapOf(
+                                    "category" to "sound",
+                                    "settings" to mapOf("soundOutput" to modeId)
+                                )
+                            )
+                            success = response1?.optJSONObject("payload")?.optBoolean("returnValue")
+                                ?: false
+
+                            // 2. Fallback to system/setSystemSettings
+                            if (!success) {
+                                Log.d("TV_DEBUG", "Fallback: Trying system/setSystemSettings")
+                                val response2 = WebSocketManager.sendCommand(
+                                    ip, tv?.clientKey ?: "",
+                                    "ssap://com.webos.service.apiadapter/system/setSystemSettings",
+                                    mapOf(
+                                        "category" to "sound",
+                                        "settings" to mapOf("soundOutput" to modeId)
+                                    )
+                                )
+                                success =
+                                    response2?.optJSONObject("payload")?.optBoolean("returnValue")
+                                        ?: false
+                            }
+
+                            // 3. Final fallback to legacy changeSoundOutput
+                            if (!success) {
+                                Log.d("TV_DEBUG", "Fallback: Trying legacy changeSoundOutput")
+                                val response3 = WebSocketManager.sendCommand(
+                                    ip, tv?.clientKey ?: "",
+                                    "ssap://com.webos.service.apiadapter/audio/changeSoundOutput",
+                                    mapOf("output" to modeId)
+                                )
+                                success =
+                                    response3?.optJSONObject("payload")?.optBoolean("returnValue")
+                                        ?: false
+                            }
 
                             if (success) {
-                                currentOutputId = mode.id
+                                currentOutputId = modeId
                                 WebSocketManager.showToast(
                                     ip,
                                     tv?.clientKey ?: "",
-                                    "Audio: ${mode.label} Enabled"
+                                    "Audio: $label Enabled"
                                 )
                             } else {
-                                error = "Failed to switch to ${mode.label}"
+                                error = "Failed to switch to $label"
                             }
                         }
                     },
@@ -163,14 +238,28 @@ fun AudioControlScreen(ip: String) {
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
                     enabled = !isLoading && tv != null,
-                    colors = if (currentOutputId == mode.id)
+                    colors = if (currentOutputId == modeId)
                         ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     else
                         ButtonDefaults.buttonColors()
                 ) {
-                    Text(mode.label)
+                    Text(label)
                 }
             }
         }
+    }
+}
+
+private fun mapModeIdToLabel(modeId: String): String {
+    return when (modeId) {
+        "tv_speaker" -> "Internal Speakers"
+        "external_arc" -> "HDMI ARC"
+        "tv_speaker_arc" -> "WOW Orchestra"
+        "bt_soundbar" -> "Bluetooth Soundbar"
+        "tv_speaker_bt" -> "TV + Bluetooth"
+        "external_optical" -> "Optical"
+        "tv_external_speaker" -> "TV + Optical"
+        "headphone" -> "Wired Headphones"
+        else -> modeId.replace("_", " ").replaceFirstChar { it.uppercase() }
     }
 }
