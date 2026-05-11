@@ -1,23 +1,45 @@
 package com.Apoorv.tvaudioswitcher
 
 import android.util.Log
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import org.json.JSONObject
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
-import javax.net.ssl.*
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,8 +122,13 @@ private suspend fun pairWithTv(
     existingClientKey: String,
     repository: TvRepository
 ): PairingResult = withContext(Dispatchers.IO) {
+    if (ip.isBlank()) {
+        Log.e("WS_PAIR", "IP address is blank, cannot pair")
+        return@withContext PairingResult(false)
+    }
     var success = false
     var receivedClientKey: String? = null
+    var receivedModelName: String? = null
 
     val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
@@ -140,6 +167,10 @@ private suspend fun pairWithTv(
                     "client-key": "$existingClientKey",
                     "manifest": {
                         "manifestVersion": 1,
+                        "vendorId": "com.apoorv",
+                        "localizedAppNames": {
+                            "": "Apoorv's Mobile Device"
+                        },
                         "permissions": [
                             "LAUNCH", "LAUNCH_WEBAPP", "APP_TO_APP", "CLOSE", "TEST_OPEN", "TEST_PROTECTED",
                             "CONTROL_AUDIO", "CONTROL_DISPLAY", "CONTROL_INPUT_JOYSTICK",
@@ -167,6 +198,7 @@ private suspend fun pairWithTv(
             try {
                 val json = JSONObject(text)
                 val type = json.optString("type")
+                val id = json.optString("id")
 
                 if (type == "registered") {
                     Log.d("WS_PAIR", "Registration successful!")
@@ -176,7 +208,23 @@ private suspend fun pairWithTv(
                         receivedClientKey = newKey
                         Log.d("WS_PAIR", "New client key received: $newKey")
                     }
-                    webSocket.close(1000, "Registration complete")
+
+                    // Request system info to get accurate model name
+                    val getSystemInfo = """
+                    {
+                        "type": "request",
+                        "id": "get_system_info",
+                        "uri": "ssap://system/getSystemInfo"
+                    }
+                    """.trimIndent()
+                    webSocket.send(getSystemInfo)
+                } else if (id == "get_system_info" && type == "response") {
+                    val modelName = json.optJSONObject("payload")?.optString("modelName")
+                    if (!modelName.isNullOrEmpty()) {
+                        receivedModelName = "LG_$modelName"
+                        Log.d("WS_PAIR", "Accurate model name received: $receivedModelName")
+                    }
+                    webSocket.close(1000, "Registration and Info complete")
                     latch.countDown()
                 } else if (type == "error") {
                     Log.e("WS_PAIR", "TV error: ${json.optString("error")}")
@@ -205,10 +253,14 @@ private suspend fun pairWithTv(
     // Block until latch is released (success, error, close, or timeout)
     latch.await(30, TimeUnit.SECONDS)
 
-    // Save new key if received (on main thread)
-    if (success && receivedClientKey != null) {
+    // Save new key and name if received (on main thread)
+    if (success) {
         withContext(Dispatchers.Main) {
-            repository.updateTvClientKey(ip, receivedClientKey)
+            repository.updateTvClientKey(
+                ip,
+                receivedClientKey ?: existingClientKey,
+                receivedModelName
+            )
         }
     }
 
