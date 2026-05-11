@@ -34,7 +34,6 @@ void setup() {
 
 void loop() {
   delay(5000);
-  ArduinoOTA.handle(); // This is critical!  
-  Serial.println(OTA_version);
+  ArduinoOTA.handle();
   publish_event(TOPIC_DATA, getFormattedTime().c_str());
 }
